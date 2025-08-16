@@ -144,53 +144,95 @@ func getClassDirectories(rootDir string) ([]string, error) {
 	return classDirs, nil
 }
 
+func getSubDirectories(rootDir string) ([]string, error) {
+	var subDirs []string
+
+	entries, err := os.ReadDir(rootDir)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			// .DS_Storeなどの隠しディレクトリを除外
+			if !strings.HasPrefix(entry.Name(), ".") {
+				subDirs = append(subDirs, filepath.Join(rootDir, entry.Name()))
+			}
+		}
+	}
+
+	return subDirs, nil
+}
+
 func processClassDirectory(config *Config, classDir string) error {
 	className := filepath.Base(classDir)
 	log.Printf("クラス '%s' を処理中...", className)
 
-	// クラスディレクトリ内のファイル一覧を取得
-	files, err := getImageFiles(classDir)
+	// クラスディレクトリ直下のサブディレクトリを取得
+	subDirs, err := getSubDirectories(classDir)
 	if err != nil {
-		return fmt.Errorf("ファイル一覧の取得に失敗: %v", err)
+		return fmt.Errorf("サブディレクトリの取得に失敗: %v", err)
 	}
 
-	if len(files) == 0 {
-		log.Printf("警告: クラス '%s' に画像ファイルがありません", className)
+	if len(subDirs) == 0 {
+		log.Printf("警告: クラス '%s' にサブディレクトリがありません", className)
 		return nil
 	}
 
-	log.Printf("  ファイル数: %d", len(files))
+	log.Printf("  サブディレクトリ数: %d", len(subDirs))
 
-	// 最小ファイル数チェック
-	if len(files) < config.MinFileCount {
-		log.Printf("  スキップ: ファイル数が%d未満のため (%d < %d)", config.MinFileCount, len(files), config.MinFileCount)
-		return nil
+	// 各サブディレクトリの処理
+	for _, subDir := range subDirs {
+		subDirName := filepath.Base(subDir)
+		log.Printf("    サブディレクトリ '%s' を処理中...", subDirName)
+
+		// サブディレクトリ内の画像ファイルを取得
+		files, err := getImageFiles(subDir)
+		if err != nil {
+			log.Printf("      警告: ファイル一覧の取得に失敗: %v", err)
+			continue
+		}
+
+		if len(files) == 0 {
+			log.Printf("      警告: サブディレクトリ '%s' に画像ファイルがありません", subDirName)
+			continue
+		}
+
+		log.Printf("      ファイル数: %d", len(files))
+
+		// 最小ファイル数チェック
+		if len(files) < config.MinFileCount {
+			log.Printf("      スキップ: ファイル数が%d未満のため (%d < %d)", config.MinFileCount, len(files), config.MinFileCount)
+			continue
+		}
+
+		// ファイルをシャッフル
+		shuffledFiles := make([]string, len(files))
+		copy(shuffledFiles, files)
+		rand.Shuffle(len(shuffledFiles), func(i, j int) {
+			shuffledFiles[i], shuffledFiles[j] = shuffledFiles[j], shuffledFiles[i]
+		})
+
+		// 分割点の計算
+		trainingCount := int(float64(len(shuffledFiles)) * config.TrainingRatio)
+
+		// 教師データと検証データに分割
+		trainingFiles := shuffledFiles[:trainingCount]
+		validationFiles := shuffledFiles[trainingCount:]
+
+		// ディレクトリの作成とファイルのコピー
+		if err := copyFiles(config.DestDir, "train", subDirName, trainingFiles); err != nil {
+			log.Printf("      警告: 教師データのコピーに失敗: %v", err)
+			continue
+		}
+
+		if err := copyFiles(config.DestDir, "validation", subDirName, validationFiles); err != nil {
+			log.Printf("      警告: 検証データのコピーに失敗: %v", err)
+			continue
+		}
+
+		log.Printf("      教師データ: %d件, 検証データ: %d件", len(trainingFiles), len(validationFiles))
 	}
-
-	// ファイルをシャッフル
-	shuffledFiles := make([]string, len(files))
-	copy(shuffledFiles, files)
-	rand.Shuffle(len(shuffledFiles), func(i, j int) {
-		shuffledFiles[i], shuffledFiles[j] = shuffledFiles[j], shuffledFiles[i]
-	})
-
-	// 分割点の計算
-	trainingCount := int(float64(len(shuffledFiles)) * config.TrainingRatio)
-
-	// 教師データと検証データに分割
-	trainingFiles := shuffledFiles[:trainingCount]
-	validationFiles := shuffledFiles[trainingCount:]
-
-	// ディレクトリの作成とファイルのコピー
-	if err := copyFiles(config.DestDir, "train", className, trainingFiles); err != nil {
-		return fmt.Errorf("教師データのコピーに失敗: %v", err)
-	}
-
-	if err := copyFiles(config.DestDir, "validation", className, validationFiles); err != nil {
-		return fmt.Errorf("検証データのコピーに失敗: %v", err)
-	}
-
-	log.Printf("  教師データ: %d件, 検証データ: %d件", len(trainingFiles), len(validationFiles))
 
 	return nil
 }
@@ -217,9 +259,9 @@ func getImageFiles(dir string) ([]string, error) {
 	return files, err
 }
 
-func copyFiles(destRoot, splitType, className string, files []string) error {
+func copyFiles(destRoot, splitType, subDirName string, files []string) error {
 	// 出力ディレクトリの作成
-	destDir := filepath.Join(destRoot, splitType, className)
+	destDir := filepath.Join(destRoot, splitType, subDirName)
 	if err := os.MkdirAll(destDir, 0755); err != nil {
 		return fmt.Errorf("ディレクトリの作成に失敗: %v", err)
 	}
