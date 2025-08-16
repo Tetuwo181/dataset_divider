@@ -21,6 +21,8 @@
 - `-ratio`: 教師データの比率 (0.0-1.0、デフォルト: 0.8)
 - `-min-files`: コピーする最小ファイル数 (デフォルト: 50)
 - `-tar`: 出力をtarファイルに圧縮（オプション）
+- `-max-concurrent`: 同時処理するクラス数 (0=自動設定、デフォルト: CPUコア数/2)
+- `-copy-workers`: ファイルコピーの並列数 (0=自動設定、デフォルト: CPUコア数)
 
 ### 基本的な使用方法
 
@@ -49,6 +51,12 @@
 
 # tarファイルで出力を圧縮
 ./dataset-splitter -source ./鉄道画像 -dest ./output -tar
+
+# 並列処理で高速化（2クラス並列、4ワーカー）
+./dataset-splitter -source ./鉄道画像 -dest ./output -max-concurrent 2 -copy-workers 4
+
+# 全オプションを組み合わせ
+./dataset-splitter -source ./鉄道画像 -dest ./output -ratio 0.7 -min-files 10 -tar -max-concurrent 4 -copy-workers 8
 ```
 
 ## ディレクトリ構造の例

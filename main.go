@@ -9,7 +9,9 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -20,6 +22,8 @@ type Config struct {
 	ValidationRatio float64
 	MinFileCount    int
 	TarOutput       bool
+	MaxConcurrent   int
+	MaxCopyWorkers  int
 }
 
 func main() {
@@ -47,6 +51,7 @@ func main() {
 	log.Printf("検証データ比率: %.2f%%", config.ValidationRatio*100)
 	log.Printf("最小ファイル数: %d", config.MinFileCount)
 	log.Printf("tar出力: %t", config.TarOutput)
+	log.Printf("並列処理: %dクラス, %dワーカー", config.MaxConcurrent, config.MaxCopyWorkers)
 
 	// クラスディレクトリの取得
 	classDirs, err := getClassDirectories(config.SourceDir)
@@ -57,11 +62,8 @@ func main() {
 	log.Printf("検出されたクラス数: %d", len(classDirs))
 
 	// 各クラスディレクトリの処理
-	for _, classDir := range classDirs {
-		if err := processClassDirectory(config, classDir); err != nil {
-			log.Printf("警告: クラス %s の処理に失敗: %v", classDir, err)
-			continue
-		}
+	if err := processClassesParallel(config, classDirs); err != nil {
+		log.Fatalf("クラスディレクトリの処理中にエラーが発生しました: %v", err)
 	}
 
 	log.Printf("データセット分割が完了しました！")
@@ -85,6 +87,8 @@ func parseFlags() *Config {
 	flag.Float64Var(&config.TrainingRatio, "ratio", 0.8, "教師データの比率 (0.0-1.0)")
 	flag.IntVar(&config.MinFileCount, "min-files", 50, "コピーする最小ファイル数")
 	flag.BoolVar(&config.TarOutput, "tar", false, "出力をtarファイルに圧縮")
+	flag.IntVar(&config.MaxConcurrent, "max-concurrent", 0, "同時処理するクラス数 (0=自動設定)")
+	flag.IntVar(&config.MaxCopyWorkers, "copy-workers", 0, "ファイルコピーの並列数 (0=自動設定)")
 
 	flag.Parse()
 
@@ -103,6 +107,20 @@ func parseFlags() *Config {
 	}
 
 	config.ValidationRatio = 1.0 - config.TrainingRatio
+
+	// デフォルト値の設定
+	if config.MaxConcurrent == 0 {
+		config.MaxConcurrent = runtime.NumCPU() / 2
+		if config.MaxConcurrent < 1 {
+			config.MaxConcurrent = 1
+		}
+	}
+	if config.MaxCopyWorkers == 0 {
+		config.MaxCopyWorkers = runtime.NumCPU()
+		if config.MaxCopyWorkers < 1 {
+			config.MaxCopyWorkers = 1
+		}
+	}
 
 	return config
 }
@@ -235,12 +253,12 @@ func processClassDirectory(config *Config, classDir string) error {
 		validationFiles := shuffledFiles[trainingCount:]
 
 		// ディレクトリの作成とファイルのコピー
-		if err := copyFiles(config.DestDir, "train", subDirName, trainingFiles); err != nil {
+		if err := copyFilesParallel(config.DestDir, "train", subDirName, trainingFiles, config.MaxCopyWorkers); err != nil {
 			log.Printf("      警告: 教師データのコピーに失敗: %v", err)
 			continue
 		}
 
-		if err := copyFiles(config.DestDir, "validation", subDirName, validationFiles); err != nil {
+		if err := copyFilesParallel(config.DestDir, "validation", subDirName, validationFiles, config.MaxCopyWorkers); err != nil {
 			log.Printf("      警告: 検証データのコピーに失敗: %v", err)
 			continue
 		}
@@ -377,5 +395,132 @@ func createTarArchive(sourceDir string) error {
 	}
 
 	log.Printf("tarファイルが作成されました: %s", tarFileName)
+	return nil
+}
+
+// 並列処理用のセマフォ
+type Semaphore struct {
+	sem chan struct{}
+}
+
+func NewSemaphore(max int) *Semaphore {
+	return &Semaphore{
+		sem: make(chan struct{}, max),
+	}
+}
+
+func (s *Semaphore) Acquire() {
+	s.sem <- struct{}{}
+}
+
+func (s *Semaphore) Release() {
+	<-s.sem
+}
+
+// メインクラスの並列処理
+func processClassesParallel(config *Config, classDirs []string) error {
+	if len(classDirs) == 0 {
+		return nil
+	}
+
+	// 並列度が1の場合は順次処理
+	if config.MaxConcurrent <= 1 {
+		for _, classDir := range classDirs {
+			if err := processClassDirectory(config, classDir); err != nil {
+				log.Printf("警告: クラス %s の処理に失敗: %v", filepath.Base(classDir), err)
+			}
+		}
+		return nil
+	}
+
+	// 並列処理
+	sem := NewSemaphore(config.MaxConcurrent)
+	var wg sync.WaitGroup
+	errors := make(chan error, len(classDirs))
+
+	log.Printf("並列処理を開始: %dクラスを%d並列で処理", len(classDirs), config.MaxConcurrent)
+
+	for _, classDir := range classDirs {
+		wg.Add(1)
+		go func(dir string) {
+			defer wg.Done()
+			sem.Acquire()
+			defer sem.Release()
+
+			if err := processClassDirectory(config, dir); err != nil {
+				errors <- fmt.Errorf("クラス %s の処理に失敗: %v", filepath.Base(dir), err)
+			}
+		}(classDir)
+	}
+
+	wg.Wait()
+	close(errors)
+
+	// エラーの確認
+	var hasErrors bool
+	for err := range errors {
+		log.Printf("警告: %v", err)
+		hasErrors = true
+	}
+
+	if hasErrors {
+		return fmt.Errorf("一部のクラスでエラーが発生しました")
+	}
+
+	return nil
+}
+
+// 並列ファイルコピー
+func copyFilesParallel(destRoot, splitType, subDirName string, files []string, maxWorkers int) error {
+	if len(files) == 0 {
+		return nil
+	}
+
+	// 並列度が1の場合は順次処理
+	if maxWorkers <= 1 {
+		return copyFiles(destRoot, splitType, subDirName, files)
+	}
+
+	// 出力ディレクトリの作成
+	destDir := filepath.Join(destRoot, splitType, subDirName)
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		return fmt.Errorf("ディレクトリの作成に失敗: %v", err)
+	}
+
+	// 並列コピー処理
+	sem := NewSemaphore(maxWorkers)
+	var wg sync.WaitGroup
+	errors := make(chan error, len(files))
+
+	for _, srcPath := range files {
+		wg.Add(1)
+		go func(src string) {
+			defer wg.Done()
+			sem.Acquire()
+			defer sem.Release()
+
+			fileName := filepath.Base(src)
+			destPath := filepath.Join(destDir, fileName)
+
+			if err := copyFile(src, destPath); err != nil {
+				errors <- fmt.Errorf("ファイルのコピーに失敗 %s -> %s: %v", src, destPath, err)
+			}
+		}(srcPath)
+	}
+
+	wg.Wait()
+	close(errors)
+
+	// エラーの確認
+	var hasErrors bool
+	for err := range errors {
+		log.Printf("警告: %v", err)
+		hasErrors = true
+	}
+
+	if hasErrors {
+		return fmt.Errorf("一部のファイルのコピーに失敗しました")
+	}
+
 	return nil
 }
