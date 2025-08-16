@@ -1,0 +1,53 @@
+# テストデータ
+testdata/
+
+# バイナリファイル
+dataset-splitter*
+*.exe
+
+# Go言語関連
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+
+# ビルド出力
+build/
+dist/
+bin/
+
+# 依存関係
+vendor/
+
+# IDE・エディタ関連
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS関連
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ログファイル
+*.log
+
+# 一時ファイル
+*.tmp
+*.temp
+
+# 環境変数ファイル
+.env
+.env.local
+.env.*.local
+
+# 出力ディレクトリ（実際の使用例）
+output/
+output_*/
