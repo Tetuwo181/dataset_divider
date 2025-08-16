@@ -1,6 +1,7 @@
 package main
 
 import (
+	"archive/tar"
 	"flag"
 	"fmt"
 	"io"
@@ -18,6 +19,7 @@ type Config struct {
 	TrainingRatio   float64
 	ValidationRatio float64
 	MinFileCount    int
+	TarOutput       bool
 }
 
 func main() {
@@ -44,6 +46,7 @@ func main() {
 	log.Printf("教師データ比率: %.2f%%", config.TrainingRatio*100)
 	log.Printf("検証データ比率: %.2f%%", config.ValidationRatio*100)
 	log.Printf("最小ファイル数: %d", config.MinFileCount)
+	log.Printf("tar出力: %t", config.TarOutput)
 
 	// クラスディレクトリの取得
 	classDirs, err := getClassDirectories(config.SourceDir)
@@ -62,6 +65,16 @@ func main() {
 	}
 
 	log.Printf("データセット分割が完了しました！")
+
+	// tarファイル作成オプションが有効な場合
+	if config.TarOutput {
+		log.Printf("tarファイルの作成を開始します...")
+		if err := createTarArchive(config.DestDir); err != nil {
+			log.Printf("警告: tarファイルの作成に失敗: %v", err)
+		} else {
+			log.Printf("tarファイルの作成が完了しました！")
+		}
+	}
 }
 
 func parseFlags() *Config {
@@ -71,6 +84,7 @@ func parseFlags() *Config {
 	flag.StringVar(&config.DestDir, "dest", "", "出力先ディレクトリのパス")
 	flag.Float64Var(&config.TrainingRatio, "ratio", 0.8, "教師データの比率 (0.0-1.0)")
 	flag.IntVar(&config.MinFileCount, "min-files", 50, "コピーする最小ファイル数")
+	flag.BoolVar(&config.TarOutput, "tar", false, "出力をtarファイルに圧縮")
 
 	flag.Parse()
 
@@ -295,4 +309,73 @@ func copyFile(src, dst string) error {
 
 	_, err = io.Copy(dstFile, srcFile)
 	return err
+}
+
+func createTarArchive(sourceDir string) error {
+	// tarファイル名を生成（ディレクトリ名 + .tar）
+	dirName := filepath.Base(sourceDir)
+	tarFileName := dirName + ".tar"
+
+	// tarファイルを作成
+	tarFile, err := os.Create(tarFileName)
+	if err != nil {
+		return fmt.Errorf("tarファイルの作成に失敗: %v", err)
+	}
+	defer tarFile.Close()
+
+	// tarライターを作成
+	tarWriter := tar.NewWriter(tarFile)
+	defer tarWriter.Close()
+
+	// ディレクトリ内のファイルを再帰的にtarに追加
+	err = filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// ソースディレクトリ自体はスキップ
+		if path == sourceDir {
+			return nil
+		}
+
+		// 相対パスを計算
+		relPath, err := filepath.Rel(sourceDir, path)
+		if err != nil {
+			return err
+		}
+
+		// tarヘッダーを作成
+		header, err := tar.FileInfoHeader(info, relPath)
+		if err != nil {
+			return err
+		}
+		header.Name = relPath
+
+		// ヘッダーをtarに書き込み
+		if err := tarWriter.WriteHeader(header); err != nil {
+			return err
+		}
+
+		// ディレクトリの場合はファイル内容を書き込まない
+		if info.IsDir() {
+			return nil
+		}
+
+		// ファイルの内容をtarに書き込み
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		_, err = io.Copy(tarWriter, file)
+		return err
+	})
+
+	if err != nil {
+		return fmt.Errorf("ファイルのtar化に失敗: %v", err)
+	}
+
+	log.Printf("tarファイルが作成されました: %s", tarFileName)
+	return nil
 }

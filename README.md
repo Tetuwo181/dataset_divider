@@ -20,6 +20,7 @@
 - `-dest`: 出力先ディレクトリのパス  
 - `-ratio`: 教師データの比率 (0.0-1.0、デフォルト: 0.8)
 - `-min-files`: コピーする最小ファイル数 (デフォルト: 50)
+- `-tar`: 出力をtarファイルに圧縮（オプション）
 
 ### 基本的な使用方法
 
@@ -45,6 +46,9 @@
 
 # 最小ファイル数を指定（30枚以下のディレクトリはスキップ）
 ./dataset-splitter -source ./鉄道画像 -dest ./output -min-files 30
+
+# tarファイルで出力を圧縮
+./dataset-splitter -source ./鉄道画像 -dest ./output -tar
 ```
 
 ## ディレクトリ構造の例
