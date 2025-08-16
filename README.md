@@ -113,4 +113,6 @@ GOOS=windows GOARCH=amd64 go build -o dataset-splitter-windows-amd64.exe .
 
 ## ライセンス
 
-このツールはMITライセンスの下で公開されています。
+このツールはGNU General Public License v3.0 (GPL v3) の下で公開されています。
+
+詳細は [LICENSE](LICENSE) ファイルを参照してください。
