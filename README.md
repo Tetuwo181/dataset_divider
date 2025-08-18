@@ -23,6 +23,8 @@
 - `-tar`: 出力をtarファイルに圧縮（オプション）
 - `-max-concurrent`: 同時処理するクラス数 (0=自動設定、デフォルト: CPUコア数/2)
 - `-copy-workers`: ファイルコピーの並列数 (0=自動設定、デフォルト: CPUコア数)
+- `-binary`: 二値分類モード（positive/negative）
+- `-positive`: positiveクラスのサブディレクトリ名（二値分類モード時）
 
 ### 基本的な使用方法
 
@@ -57,6 +59,9 @@
 
 # 全オプションを組み合わせ
 ./dataset-splitter -source ./鉄道画像 -dest ./output -ratio 0.7 -min-files 10 -tar -max-concurrent 4 -copy-workers 8
+
+# 二値分類モード（非鉄をpositiveクラスとして設定）
+./dataset-splitter -source ./鉄道画像 -dest ./output -binary -positive "非鉄" -ratio 0.7
 ```
 
 ## ディレクトリ構造の例
@@ -110,6 +115,26 @@
 ```
 
 **注意**: 大まかなクラス名（鉄、非鉄など）は出力に含まれず、サブクラス名のみが使用されます。
+
+## 二値分類モード
+
+`-binary`オプションを使用すると、指定したサブクラスをpositiveクラス、その他をnegativeクラスとして二値分類用のデータセットを作成できます。
+
+### 二値分類の特徴
+
+- **データ均等化**: positive/negativeクラスのデータ数を自動的に均等化
+- **基準データ数**: 少ない方のクラスのデータ数を基準に設定
+- **出力構造**: `train/positive/`, `train/negative/`, `validation/positive/`, `validation/negative/`
+
+### 使用例
+
+```bash
+# 非鉄をpositiveクラスとして二値分類データセットを作成
+./dataset-splitter -source ./鉄道画像 -dest ./output -binary -positive "非鉄"
+
+# 鉄をpositiveクラスとして作成（比率70%）
+./dataset-splitter -source ./鉄道画像 -dest ./output -binary -positive "鉄" -ratio 0.7
+```
 
 ## ビルド方法
 
