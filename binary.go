@@ -14,33 +14,68 @@ func processBinaryClassification(config *Config, classDirs []string) error {
 	var allOtherFiles []string
 
 	log.Printf("positiveクラス '%s' のデータを収集中...", config.PositiveClass)
+	log.Printf("二値分類モード: 最小ファイル数制限を無効化（全サブクラスからデータを取得）")
 
 	// 全クラスディレクトリを走査してpositiveクラスとその他のデータを分類
 	for _, classDir := range classDirs {
 		className := filepath.Base(classDir)
 		log.Printf("クラス '%s' を処理中...", className)
 
-		// 画像ファイルを取得（クラスディレクトリ内の全サブディレクトリから）
-		files, err := getImageFiles(classDir)
+		// サブディレクトリを取得
+		subDirs, err := getSubDirectories(classDir)
 		if err != nil {
-			log.Printf("警告: クラス %s のファイル取得に失敗: %v", className, err)
+			log.Printf("警告: クラス %s のサブディレクトリ取得に失敗: %v", className, err)
 			continue
 		}
 
-		if len(files) == 0 {
-			log.Printf("警告: クラス '%s' に画像ファイルがありません", className)
+		// 各サブクラスから均等にデータを取得
+		var classFiles []string
+		for _, subDir := range subDirs {
+			subDirName := filepath.Base(subDir)
+			log.Printf("  サブディレクトリ '%s' を処理中...", subDirName)
+
+			// 画像ファイルを取得
+			files, err := getImageFiles(subDir)
+			if err != nil {
+				log.Printf("    警告: ファイル一覧の取得に失敗: %v", err)
+				continue
+			}
+
+			if len(files) == 0 {
+				log.Printf("    警告: サブディレクトリ '%s' に画像ファイルがありません", subDirName)
+				continue
+			}
+
+			log.Printf("    ファイル数: %d", len(files))
+
+			// 二値分類モードでは最小ファイル数制限を無効化
+			// すべてのサブクラスからデータを取得
+			if len(files) > 0 {
+				// サブクラス内でシャッフル
+				rand.Shuffle(len(files), func(i, j int) {
+					files[i], files[j] = files[j], files[i]
+				})
+
+				// サブクラスからデータを追加
+				classFiles = append(classFiles, files...)
+				log.Printf("    追加: %d件", len(files))
+			}
+		}
+
+		if len(classFiles) == 0 {
+			log.Printf("警告: クラス '%s' に有効な画像ファイルがありません", className)
 			continue
 		}
 
-		log.Printf("  ファイル数: %d", len(files))
+		log.Printf("  クラス全体のファイル数: %d", len(classFiles))
 
 		// positiveクラスかどうかで分類
 		if className == config.PositiveClass {
-			positiveFiles = append(positiveFiles, files...)
-			log.Printf("  positiveクラスとして追加: %d件", len(files))
+			positiveFiles = append(positiveFiles, classFiles...)
+			log.Printf("  positiveクラスとして追加: %d件", len(classFiles))
 		} else {
-			allOtherFiles = append(allOtherFiles, files...)
-			log.Printf("  negativeクラスとして追加: %d件", len(files))
+			allOtherFiles = append(allOtherFiles, classFiles...)
+			log.Printf("  negativeクラスとして追加: %d件", len(classFiles))
 		}
 	}
 
