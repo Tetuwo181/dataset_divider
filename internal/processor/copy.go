@@ -1,4 +1,4 @@
-package main
+package processor
 
 import (
 	"fmt"
@@ -7,10 +7,12 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"dataset-splitter/internal/utils"
 )
 
-// copyFile は単一ファイルをコピー
-func copyFile(src, dst string) error {
+// CopyFile は単一ファイルをコピー
+func CopyFile(src, dst string) error {
 	srcFile, err := os.Open(src)
 	if err != nil {
 		return err
@@ -27,8 +29,8 @@ func copyFile(src, dst string) error {
 	return err
 }
 
-// copyFiles はファイル群を順次コピー
-func copyFiles(destRoot, splitType, subDirName string, files []string) error {
+// CopyFiles はファイル群を順次コピー
+func CopyFiles(destRoot, splitType, subDirName string, files []string) error {
 	// 出力ディレクトリの作成
 	destDir := filepath.Join(destRoot, splitType, subDirName)
 	if err := os.MkdirAll(destDir, 0755); err != nil {
@@ -40,7 +42,7 @@ func copyFiles(destRoot, splitType, subDirName string, files []string) error {
 		fileName := filepath.Base(srcPath)
 		destPath := filepath.Join(destDir, fileName)
 
-		if err := copyFile(srcPath, destPath); err != nil {
+		if err := CopyFile(srcPath, destPath); err != nil {
 			log.Printf("警告: ファイルのコピーに失敗 %s -> %s: %v", srcPath, destPath, err)
 			continue
 		}
@@ -49,15 +51,15 @@ func copyFiles(destRoot, splitType, subDirName string, files []string) error {
 	return nil
 }
 
-// copyFilesParallel はファイル群を並列コピー
-func copyFilesParallel(destRoot, splitType, subDirName string, files []string, maxWorkers int) error {
+// CopyFilesParallel はファイル群を並列コピー
+func CopyFilesParallel(destRoot, splitType, subDirName string, files []string, maxWorkers int) error {
 	if len(files) == 0 {
 		return nil
 	}
 
 	// 並列度が1の場合は順次処理
 	if maxWorkers <= 1 {
-		return copyFiles(destRoot, splitType, subDirName, files)
+		return CopyFiles(destRoot, splitType, subDirName, files)
 	}
 
 	// 出力ディレクトリの作成
@@ -67,7 +69,7 @@ func copyFilesParallel(destRoot, splitType, subDirName string, files []string, m
 	}
 
 	// 並列コピー処理
-	sem := NewSemaphore(maxWorkers)
+	sem := utils.NewSemaphore(maxWorkers)
 	var wg sync.WaitGroup
 	errors := make(chan error, len(files))
 
@@ -81,7 +83,7 @@ func copyFilesParallel(destRoot, splitType, subDirName string, files []string, m
 			fileName := filepath.Base(src)
 			destPath := filepath.Join(destDir, fileName)
 
-			if err := copyFile(src, destPath); err != nil {
+			if err := CopyFile(src, destPath); err != nil {
 				errors <- fmt.Errorf("ファイルのコピーに失敗 %s -> %s: %v", src, destPath, err)
 			}
 		}(srcPath)

@@ -1,14 +1,16 @@
-package main
+package processor
 
 import (
 	"fmt"
 	"log"
 	"math/rand"
-	"path/filepath"
+
+	"dataset-splitter/internal/config"
+	"dataset-splitter/internal/utils"
 )
 
-// processBinaryClassification は二値分類処理
-func processBinaryClassification(config *Config, classDirs []string) error {
+// ProcessBinaryClassification は二値分類処理
+func ProcessBinaryClassification(config *config.Config, classDirs []string) error {
 	// positiveクラスのデータを収集
 	var positiveFiles []string
 	var allOtherFiles []string
@@ -18,11 +20,11 @@ func processBinaryClassification(config *Config, classDirs []string) error {
 
 	// 全クラスディレクトリを走査してpositiveクラスとその他のデータを分類
 	for _, classDir := range classDirs {
-		className := filepath.Base(classDir)
+		className := utils.GetClassName(classDir)
 		log.Printf("クラス '%s' を処理中...", className)
 
 		// サブディレクトリを取得
-		subDirs, err := getSubDirectories(classDir)
+		subDirs, err := utils.GetSubDirectories(classDir)
 		if err != nil {
 			log.Printf("警告: クラス %s のサブディレクトリ取得に失敗: %v", className, err)
 			continue
@@ -31,11 +33,11 @@ func processBinaryClassification(config *Config, classDirs []string) error {
 		// 各サブクラスから均等にデータを取得
 		var classFiles []string
 		for _, subDir := range subDirs {
-			subDirName := filepath.Base(subDir)
+			subDirName := utils.GetClassName(subDir)
 			log.Printf("  サブディレクトリ '%s' を処理中...", subDirName)
 
 			// 画像ファイルを取得
-			files, err := getImageFiles(subDir)
+			files, err := utils.GetImageFiles(subDir)
 			if err != nil {
 				log.Printf("    警告: ファイル一覧の取得に失敗: %v", err)
 				continue
@@ -116,18 +118,18 @@ func processBinaryClassification(config *Config, classDirs []string) error {
 	log.Printf("positive/negativeデータのコピーを開始...")
 
 	// positiveクラスのコピー
-	if err := copyFilesParallel(config.DestDir, "train", "positive", positiveTraining, config.MaxCopyWorkers); err != nil {
+	if err := CopyFilesParallel(config.DestDir, "train", "positive", positiveTraining, config.MaxCopyWorkers); err != nil {
 		return fmt.Errorf("positive教師データのコピーに失敗: %v", err)
 	}
-	if err := copyFilesParallel(config.DestDir, "validation", "positive", positiveValidation, config.MaxCopyWorkers); err != nil {
+	if err := CopyFilesParallel(config.DestDir, "validation", "positive", positiveValidation, config.MaxCopyWorkers); err != nil {
 		return fmt.Errorf("positive検証データのコピーに失敗: %v", err)
 	}
 
 	// negativeクラスのコピー
-	if err := copyFilesParallel(config.DestDir, "train", "negative", negativeTraining, config.MaxCopyWorkers); err != nil {
+	if err := CopyFilesParallel(config.DestDir, "train", "negative", negativeTraining, config.MaxCopyWorkers); err != nil {
 		return fmt.Errorf("negative教師データのコピーに失敗: %v", err)
 	}
-	if err := copyFilesParallel(config.DestDir, "validation", "negative", negativeValidation, config.MaxCopyWorkers); err != nil {
+	if err := CopyFilesParallel(config.DestDir, "validation", "negative", negativeValidation, config.MaxCopyWorkers); err != nil {
 		return fmt.Errorf("negative検証データのコピーに失敗: %v", err)
 	}
 

@@ -1,44 +1,33 @@
-package main
+package processor
 
 import (
 	"fmt"
 	"log"
 	"path/filepath"
 	"sync"
+
+	"dataset-splitter/internal/utils"
 )
 
-// Semaphore は並列処理用のセマフォ
-type Semaphore struct {
-	sem chan struct{}
-}
-
-// NewSemaphore は新しいセマフォを作成
-func NewSemaphore(max int) *Semaphore {
-	return &Semaphore{
-		sem: make(chan struct{}, max),
-	}
-}
-
-// Acquire はセマフォを取得
-func (s *Semaphore) Acquire() {
-	s.sem <- struct{}{}
-}
-
-// Release はセマフォを解放
-func (s *Semaphore) Release() {
-	<-s.sem
-}
-
-// processClassesParallel はメインクラスの並列処理
-func processClassesParallel(config *Config, classDirs []string) error {
+// ProcessClassesParallel はメインクラスの並列処理
+func ProcessClassesParallel(config interface{}, classDirs []string, processFunc func(string) error) error {
 	if len(classDirs) == 0 {
 		return nil
 	}
 
+	// 設定から並列度を取得（型アサーション）
+	var maxConcurrent int
+	switch cfg := config.(type) {
+	case interface{ GetMaxConcurrent() int }:
+		maxConcurrent = cfg.GetMaxConcurrent()
+	default:
+		maxConcurrent = 1
+	}
+
 	// 並列度が1の場合は順次処理
-	if config.MaxConcurrent <= 1 {
+	if maxConcurrent <= 1 {
 		for _, classDir := range classDirs {
-			if err := processClassDirectory(config, classDir); err != nil {
+			if err := processFunc(classDir); err != nil {
 				log.Printf("警告: クラス %s の処理に失敗: %v", filepath.Base(classDir), err)
 			}
 		}
@@ -46,11 +35,11 @@ func processClassesParallel(config *Config, classDirs []string) error {
 	}
 
 	// 並列処理
-	sem := NewSemaphore(config.MaxConcurrent)
+	sem := utils.NewSemaphore(maxConcurrent)
 	var wg sync.WaitGroup
 	errors := make(chan error, len(classDirs))
 
-	log.Printf("並列処理を開始: %dクラスを%d並列で処理", len(classDirs), config.MaxConcurrent)
+	log.Printf("並列処理を開始: %dクラスを%d並列で処理", len(classDirs), maxConcurrent)
 
 	for _, classDir := range classDirs {
 		wg.Add(1)
@@ -59,7 +48,7 @@ func processClassesParallel(config *Config, classDirs []string) error {
 			sem.Acquire()
 			defer sem.Release()
 
-			if err := processClassDirectory(config, dir); err != nil {
+			if err := processFunc(dir); err != nil {
 				errors <- fmt.Errorf("クラス %s の処理に失敗: %v", filepath.Base(dir), err)
 			}
 		}(classDir)

@@ -1,32 +1,30 @@
 #!/bin/bash
 
-echo "データセット分割ツールのビルドを開始します..."
+echo "🚀 Dataset Splitter ビルド開始..."
 
-# 現在のディレクトリを取得
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+# コマンドライン版のビルド
+echo "📦 コマンドライン版をビルド中..."
+go build -o dataset-splitter .
+if [ $? -eq 0 ]; then
+    echo "✅ コマンドライン版のビルド成功: dataset-splitter"
+else
+    echo "❌ コマンドライン版のビルド失敗"
+    exit 1
+fi
 
-# 出力ディレクトリの作成
-mkdir -p build
-
-echo "macOS用バイナリをビルド中..."
-GOOS=darwin GOARCH=amd64 go build -o build/dataset-splitter-mac-amd64 .
-GOOS=darwin GOARCH=arm64 go build -o build/dataset-splitter-mac-arm64 .
-
-echo "Linux用バイナリをビルド中..."
-GOOS=linux GOARCH=amd64 go build -o build/dataset-splitter-linux-amd64 .
-GOOS=linux GOARCH=arm64 go build -o build/dataset-splitter-linux-arm64 .
-
-echo "Windows用バイナリをビルド中..."
-GOOS=windows GOARCH=amd64 go build -o build/dataset-splitter-windows-amd64.exe .
-GOOS=windows GOARCH=arm64 go build -o build/dataset-splitter-windows-arm64.exe .
-
-echo "ビルド完了！"
+# バイナリサイズの表示
 echo ""
-echo "生成されたバイナリ:"
-ls -la build/
-
+echo "📊 ビルド結果:"
+echo "  コマンドライン版: $(ls -lh dataset-splitter | awk '{print $5}')"
+echo ""
+echo "🎉 ビルド完了！"
 echo ""
 echo "使用方法:"
-echo "  ./build/dataset-splitter-mac-amd64 [ソースディレクトリ] [出力先ディレクトリ] [教師データ比率]"
-echo "  例: ./build/dataset-splitter-mac-amd64 ./鉄 ./output 0.8"
+echo "  コマンドライン版: ./dataset-splitter -help"
+echo ""
+echo "機能:"
+echo "  - 多クラス分類データセット分割"
+echo "  - 二値分類モード"
+echo "  - tar出力"
+echo "  - 並列処理"
+echo "  - 最小ファイル数フィルタリング"

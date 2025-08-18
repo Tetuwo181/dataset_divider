@@ -2,51 +2,58 @@
 
 機械学習のクラス分けに使用する画像データを、指定した比率で教師データと検証データに分割するツールです。
 
-## 機能
+## 🚀 特徴
 
 - **階層ディレクトリ構造対応**: 大まかなクラス（例：鉄、非鉄）の中にサブクラス（例：223系、非鉄(食品)）がある構造を適切に処理
-- ディレクトリ構造を保持したままデータを分割
-- 各サブクラスディレクトリからランダムにファイルを選択
-- 教師データと検証データの比率を指定可能
-- 画像ファイル（jpg, jpeg, png, gif, bmp）を自動検出
-- 指定した枚数以下のディレクトリは自動的にスキップ
-- クロスプラットフォーム対応（Windows, macOS, Linux）
+- **軽量で高速**: 最小限の依存関係で高速起動・実行
+- **並列処理**: クラスレベルとファイルコピーレベルでの並列化
+- **柔軟な設定**: 教師データ比率、最小ファイル数、並列度の調整が可能
+- **二値分類モード**: positive/negativeクラスでの二値分類データセット作成
+- **tar出力**: 出力データの自動圧縮
+- **クロスプラットフォーム**: Windows, macOS, Linux対応
 
-## 使用方法
+## 📦 インストール
+
+### バイナリのダウンロード
+[Releases](https://github.com/hashikawashou/dataset_divider/releases) から最新版をダウンロード
+
+### ソースからビルド
+```bash
+git clone https://github.com/hashikawashou/dataset_divider.git
+cd dataset_divider
+./build.sh
+```
+
+## 🎯 機能
+
+- **多クラス分類**: 階層ディレクトリ構造を保持したデータ分割
+- **二値分類モード**: positive/negativeクラスでの均等化されたデータセット作成
+- **並列処理**: メインクラスレベルとファイルコピーレベルでの並列化
+- **最小ファイル数フィルタリング**: 指定した枚数以下のディレクトリを自動スキップ
+- **tar出力**: 出力データの自動圧縮
+- **画像ファイル自動検出**: jpg, jpeg, png, gif, bmp形式を自動認識
+
+## 📖 使用方法
 
 ### コマンドラインオプション
 
-- `-source`: ソースディレクトリのパス
-- `-dest`: 出力先ディレクトリのパス  
-- `-ratio`: 教師データの比率 (0.0-1.0、デフォルト: 0.8)
-- `-min-files`: コピーする最小ファイル数 (デフォルト: 50)
-- `-tar`: 出力をtarファイルに圧縮（オプション）
-- `-max-concurrent`: 同時処理するクラス数 (0=自動設定、デフォルト: CPUコア数/2)
-- `-copy-workers`: ファイルコピーの並列数 (0=自動設定、デフォルト: CPUコア数)
-- `-binary`: 二値分類モード（positive/negative）
-- `-positive`: positiveクラスのサブディレクトリ名（二値分類モード時）
+| オプション | 説明 | デフォルト値 |
+|------------|------|--------------|
+| `-source` | ソースディレクトリのパス | 必須 |
+| `-dest` | 出力先ディレクトリのパス | 必須 |
+| `-ratio` | 教師データの比率 (0.0-1.0) | 0.7 |
+| `-min-files` | コピーする最小ファイル数 | 50 |
+| `-tar` | 出力をtarファイルに圧縮 | false |
+| `-max-concurrent` | 同時処理するクラス数 | CPUコア数/2 |
+| `-copy-workers` | ファイルコピーの並列数 | CPUコア数 |
+| `-binary` | 二値分類モード | false |
+| `-positive` | positiveクラス名（二値分類モード時） | 必須（-binary時） |
 
 ### 基本的な使用方法
 
 ```bash
-# 位置引数を使用
-./dataset-splitter [ソースディレクトリ] [出力先ディレクトリ] [教師データ比率]
-
-# フラグを使用
-./dataset-splitter -source [ソースディレクトリ] -dest [出力先ディレクトリ] -ratio [教師データ比率] -min-files [最小ファイル数]
-```
-
-### 使用例
-
-```bash
-# 鉄道画像データを80%の教師データ、20%の検証データに分割
-./dataset-splitter ./鉄道画像 ./output 0.8
-
-# モノレール画像データを70%の教師データ、30%の検証データに分割
-./dataset-splitter ./モノレール画像 ./monorail_output 0.7
-
-# パーセンテージ表記も使用可能
-./dataset-splitter ./交通機関画像 ./transport_output 75%
+# 基本的な多クラス分類
+./dataset-splitter -source ./鉄道画像 -dest ./output -ratio 0.7
 
 # 最小ファイル数を指定（30枚以下のディレクトリはスキップ）
 ./dataset-splitter -source ./鉄道画像 -dest ./output -min-files 30
@@ -54,18 +61,19 @@
 # tarファイルで出力を圧縮
 ./dataset-splitter -source ./鉄道画像 -dest ./output -tar
 
-# 並列処理で高速化（2クラス並列、4ワーカー）
-./dataset-splitter -source ./鉄道画像 -dest ./output -max-concurrent 2 -copy-workers 4
-
-# 全オプションを組み合わせ
-./dataset-splitter -source ./鉄道画像 -dest ./output -ratio 0.7 -min-files 10 -tar -max-concurrent 4 -copy-workers 8
+# 並列処理で高速化
+./dataset-splitter -source ./鉄道画像 -dest ./output -max-concurrent 4 -copy-workers 8
 
 # 二値分類モード（非鉄をpositiveクラスとして設定）
 ./dataset-splitter -source ./鉄道画像 -dest ./output -binary -positive "非鉄" -ratio 0.7
+
+# 全オプションを組み合わせ
+./dataset-splitter -source ./鉄道画像 -dest ./output -ratio 0.7 -min-files 10 -tar -max-concurrent 4 -copy-workers 8
 ```
 
-## ディレクトリ構造の例
+## 📁 ディレクトリ構造の例
 
+### 入力構造
 ```
 ソースディレクトリ/
 ├── 鉄/                      # 大まかなクラス
@@ -86,10 +94,7 @@
     └── 東京モノレール2000形/ # サブクラス
 ```
 
-## 出力構造
-
-ツールは以下のような構造でデータを出力します：
-
+### 出力構造
 ```
 出力先ディレクトリ/
 ├── train/                    # 教師データ
@@ -98,93 +103,91 @@
 │   ├── E231系/
 │   ├── 非鉄(食品)/
 │   ├── 非鉄(鳥類)/
+│   ├── 非鉄(航空機)/
 │   ├── 上野懸垂線40系/
 │   ├── 千葉モノレール0形/
+│   ├── 湘南モノレール5000系/
 │   ├── 東京モノレール1000形/
-│   └── ...
+│   ├── 北九州モノレール1000形/
+│   └── 東京モノレール2000形/
 └── validation/               # 検証データ
     ├── 223系/
     ├── 313系/
     ├── E231系/
     ├── 非鉄(食品)/
     ├── 非鉄(鳥類)/
+    ├── 非鉄(航空機)/
     ├── 上野懸垂線40系/
     ├── 千葉モノレール0形/
+    ├── 湘南モノレール5000系/
     ├── 東京モノレール1000形/
-    └── ...
+    ├── 北九州モノレール1000形/
+    └── 東京モノレール2000形/
 ```
 
-**注意**: 大まかなクラス名（鉄、非鉄など）は出力に含まれず、サブクラス名のみが使用されます。
+## 🔄 二値分類モード
 
-## 二値分類モード
+二値分類モードでは、指定したクラスをpositive、その他をnegativeとして分類し、データ数を均等化します。
 
-`-binary`オプションを使用すると、指定したサブクラスをpositiveクラス、その他をnegativeクラスとして二値分類用のデータセットを作成できます。
-
-### 二値分類の特徴
-
-- **データ均等化**: positive/negativeクラスのデータ数を自動的に均等化
-- **基準データ数**: 少ない方のクラスのデータ数を基準に設定
-- **出力構造**: `train/positive/`, `train/negative/`, `validation/positive/`, `validation/negative/`
+### 特徴
+- **最小ファイル数制限無効**: すべてのサブクラスからデータを取得
+- **自動均等化**: positive/negativeクラスのデータ数を自動調整
+- **サブクラス間の偏り軽減**: 各サブクラスから均等にデータを抽出
 
 ### 使用例
-
 ```bash
-# 非鉄をpositiveクラスとして二値分類データセットを作成
-./dataset-splitter -source ./鉄道画像 -dest ./output -binary -positive "非鉄"
+# 非鉄クラスをpositiveとして設定
+./dataset-splitter -source ./鉄道画像 -dest ./binary_output -binary -positive "非鉄" -ratio 0.7
 
-# 鉄をpositiveクラスとして作成（比率70%）
-./dataset-splitter -source ./鉄道画像 -dest ./output -binary -positive "鉄" -ratio 0.7
+# 出力構造
+binary_output/
+├── train/
+│   ├── positive/            # 非鉄クラスのデータ
+│   └── negative/            # その他クラスのデータ
+└── validation/
+    ├── positive/            # 非鉄クラスのデータ
+    └── negative/            # その他クラスのデータ
 ```
 
-## ビルド方法
+## ⚡ 並列処理
 
-### macOS/Linux
+### 2段階の並列化
+1. **クラスレベル並列化**: メインクラスを並列処理
+2. **ファイルコピー並列化**: ファイルのコピーを並列実行
+
+### 設定例
+```bash
+# 4クラスを並列処理、8ワーカーでファイルコピー
+./dataset-splitter -source ./鉄道画像 -dest ./output -max-concurrent 4 -copy-workers 8
+
+# 自動設定（推奨）
+./dataset-splitter -source ./鉄道画像 -dest ./output
+```
+
+## 📊 パフォーマンス
+
+- **軽量**: バイナリサイズ約2.6MB
+- **高速**: 並列処理による大幅な高速化
+- **効率的**: 最小限のメモリ使用量
+
+## 🛠️ ビルド
 
 ```bash
-# ビルドスクリプトを実行
-chmod +x build.sh
+# 基本的なビルド
+go build -o dataset-splitter .
+
+# ビルドスクリプトを使用
 ./build.sh
 ```
 
-### Windows
+## 📄 ライセンス
 
-```cmd
-# バッチファイルを実行
-build.bat
-```
+このプロジェクトは [GNU General Public License v3.0 (GPL v3)](LICENSE) の下で公開されています。
 
-### 手動ビルド
+## 🤝 貢献
 
-```bash
-# 現在のプラットフォーム用
-go build -o dataset-splitter .
+プルリクエストやイシューの報告を歓迎します！
 
-# 特定のプラットフォーム用
-GOOS=darwin GOARCH=amd64 go build -o dataset-splitter-mac-amd64 .
-GOOS=windows GOARCH=amd64 go build -o dataset-splitter-windows-amd64.exe .
-```
+## 📞 サポート
 
-## 生成されるバイナリ
-
-ビルド後、以下のバイナリが生成されます：
-
-- `dataset-splitter-mac-amd64` - macOS (Intel)
-- `dataset-splitter-mac-arm64` - macOS (Apple Silicon)
-- `dataset-splitter-linux-amd64` - Linux (Intel)
-- `dataset-splitter-linux-arm64` - Linux (ARM)
-- `dataset-splitter-windows-amd64.exe` - Windows (Intel)
-- `dataset-splitter-windows-arm64.exe` - Windows (ARM)
-
-## 注意事項
-
-- ソースディレクトリ内の各サブディレクトリが1つのクラスとして扱われます
-- 画像ファイル以外のファイルは無視されます
-- 指定した最小ファイル数未満のディレクトリは自動的にスキップされます（デフォルト: 50枚）
-- 既存の出力ディレクトリがある場合、上書きされます
-- ファイルのコピーに失敗した場合は警告が表示されますが、処理は継続されます
-
-## ライセンス
-
-このツールはGNU General Public License v3.0 (GPL v3) の下で公開されています。
-
-詳細は [LICENSE](LICENSE) ファイルを参照してください。
+問題が発生した場合は、[Issues](https://github.com/hashikawashou/dataset_divider/issues) で報告してください。
